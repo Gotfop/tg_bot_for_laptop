@@ -5,7 +5,7 @@ from telebot import types
 import requests
 
 API_URL = 'http://127.0.0.1:8000/'
-bot = TeleBot('7937175776:AAHh3p8sk27TNWcQ3FSwzthzNMbFpsySk2c')
+bot = TeleBot('7937175776:AAHkh9r9ceDPlwCnMj7PpBFOT5V4Ku5S8KU')
 state = {}
 
 @bot.message_handler(commands=['start'])
@@ -46,7 +46,7 @@ def add_laptop(message: Message):
 
 def mark(message):
    bot.send_message(chat_id=message.chat.id, text='Напишите  марку')
-   state[message.chat.id]['filial_id'] = int(message.text)
+   # state[message.chat.id]['filial_id'] = int(message.text)
    bot.register_next_step_handler(message, model)
 
 def model(message):
@@ -149,12 +149,22 @@ def get_filials():
       
    return lst
 
+def get_filials():
+   response = requests.get(API_URL + 'filials')
+   lst = []
+   if response.status_code == 200:
+      lst = response.json()
+      
+   return lst
+
+
 @bot.callback_query_handler(func=lambda call: call.data.startswith('filial-'))
 def handler_fil(call: CallbackQuery):
    id = call.data.split('filial-')[1]
    state[call.message.chat.id]['filial_id'] = int(id)
    print(id)
 
-   bot.register_next_step_handler(call.message, mark)
+   # bot.register_next_step_handler(call.message, mark)
+   mark(call.message)
 
 bot.polling()
