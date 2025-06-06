@@ -45,56 +45,65 @@ def add_laptop(message: Message):
    
 
 def mark(message):
-   bot.send_message(chat_id=message.chat.id, text='Напишите  марку')
-   # state[message.chat.id]['filial_id'] = int(message.text)
-   bot.register_next_step_handler(message, model)
+   marks = get_marks()
+   markup = InlineKeyboardMarkup()
+   for mark in marks:
+
+      markup.add(InlineKeyboardButton(mark['mark'],callback_data=f"mark-{mark['id']}"))
+
+   markup.add(InlineKeyboardButton('Добавить Марку'),callback_data = 'mark-0')
+   
+   bot.send_message(chat_id=message.chat.id, text="Выберите  марку",reply_markup=markup)
+
+def input_mark():
+   bot.send_message(chat_id=message.chat.id, text='напишите модель')
+
 
 def model(message):
    print(message.text)
    bot.send_message(chat_id=message.chat.id, text='напишите модель')
-   state[message.chat.id]['mark_id'] = int(message.text)
    bot.register_next_step_handler(message, CPU)
 
 
 def CPU(message):
    print(message.text)
-   bot.send_message(chat_id=message.chat.id, text='введите CPU')
+   bot.send_message(chat_id=message.chat.id, text='введите Какой процесор (Intel Core i5-1135G7)')
    state[message.chat.id]['model'] = message.text
    bot.register_next_step_handler(message, CPU_cores)
 
 def CPU_cores(message):
    print(message.text)
-   bot.send_message(chat_id=message.chat.id, text='введите CPU_cores')
+   bot.send_message(chat_id=message.chat.id, text=' Введите колличество ядер процессора')
    state[message.chat.id]['CPU'] = message.text
    bot.register_next_step_handler(message, CPU_frequency)
 
 def CPU_frequency(message):
    print(message.text)
-   bot.send_message(chat_id=message.chat.id, text='введите CPU_frequency')
+   bot.send_message(chat_id=message.chat.id, text='введите частоту процессора')
    state[message.chat.id]['CPU_cores'] = int(message.text)
    bot.register_next_step_handler(message, RAM_amount)
 
 def RAM_amount(message):
    print(message.text)
-   bot.send_message(chat_id=message.chat.id, text='введите RAM_amount')
+   bot.send_message(chat_id=message.chat.id, text='введите колличество оперативной памяти')
    state[message.chat.id]['CPU_frequency'] = message.text
    bot.register_next_step_handler(message, video_card)
 
 def video_card(message):
    print(message.text)
-   bot.send_message(chat_id=message.chat.id, text='введите video_card')
+   bot.send_message(chat_id=message.chat.id, text='введите видео карту')
    state[message.chat.id]['RAM_amount'] = message.text
    bot.register_next_step_handler(message, drive_type)
 
 def drive_type(message):
    print(message.text)
-   bot.send_message(chat_id=message.chat.id, text='введите drive_type')
+   bot.send_message(chat_id=message.chat.id, text='введите тип диска (ssd или hdd)')
    state[message.chat.id]['video_card'] = message.text
    bot.register_next_step_handler(message, drive_amount)
 
 def drive_amount(message):
    print(message.text)
-   bot.send_message(chat_id=message.chat.id, text='введите drive_amount')
+   bot.send_message(chat_id=message.chat.id, text='введите размер диска')
    state[message.chat.id]['drive_type'] = message.text.upper()
    print(state[message.chat.id])
    bot.register_next_step_handler(message, add_lpt)
@@ -103,10 +112,20 @@ def drive_amount(message):
 def add_lpt(message):
    state[message.chat.id]['drive_amount'] = int(message.text)
    new_laptop = state[message.chat.id]
-   
-   response = requests.post(API_URL + 'laptop',json=new_laptop)
-   print(response.status_code)
-   state.clear()
+   try:
+
+      response = requests.post(API_URL + 'laptop',json=new_laptop)
+      print(response.status_code)
+      if response.status_code == 200:
+         bot.send_message(chat_id=message.chat.id, text='Успешно!')
+
+      else:
+         bot.send_message(chat_id=message.chat.id, text=response.text)
+   except:
+       bot.send_message(chat_id=message.chat.id, text='error')
+
+   state.pop([message.chat.id])
+
 
 
 @bot.message_handler(commands=['filials'])
@@ -149,8 +168,21 @@ def get_filials():
       
    return lst
 
-def get_filials():
-   response = requests.get(API_URL + 'filials')
+def add_mark(message):
+   response = requests.post(API_URL + '/laptop/mark',json={'mark':message.text})
+   print(response.status_code)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('filial-'))
+def handler_fil(call: CallbackQuery):
+   id = call.data.split('filial-')[1]
+   state[call.message.chat.id]['filial_id'] = int(id)
+
+   # bot.register_next_step_handler(call.message, mark)
+   mark(call.message)
+
+
+def get_marks():
+   response = requests.get(API_URL + '/laptop/mark')
    lst = []
    if response.status_code == 200:
       lst = response.json()
@@ -158,13 +190,17 @@ def get_filials():
    return lst
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith('filial-'))
+@bot.callback_query_handler(func=lambda call: call.data.startswith('mark-'))
 def handler_fil(call: CallbackQuery):
-   id = call.data.split('filial-')[1]
-   state[call.message.chat.id]['filial_id'] = int(id)
-   print(id)
+   id = call.data.split('mark-')[1]
+   if id == '0':
+      bot.send_message(chat_id=call.message.chat.id, text='напишите марку')
+      bot.register_next_step_handler()
+      
+   state[call.message.chat.id]['mark_id'] = int(id)
 
-   # bot.register_next_step_handler(call.message, mark)
-   mark(call.message)
+   model(call.message)
+
+
 
 bot.polling()
