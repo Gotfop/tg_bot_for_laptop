@@ -10,29 +10,64 @@ state = {}
 
 @bot.message_handler(commands=['start'])
 def echo(message: Message):
-   bot.send_message(chat_id=message.chat.id, text='выберите команду\n /laptops\n/add_laptop \n/delete_laptop\n/delete_filial\n/add_filial\n/add_note\n/delete_note')
+   bot.clear_step_handler(message)
+   if message.chat.id in state:
+      del state[message.chat.id]
+   bot.set_my_commands([
+      types.BotCommand('laptops','Список ноутбуков'),
+      types.BotCommand('add_laptop','Добавить новый ноутбук'),
+      types.BotCommand('add_filial','Добавить филиал'),
+      
+
+   ])
+   bot.send_message(chat_id=message.chat.id, text='выберите команду\n /laptops\n/add_laptop \n/delete_laptop\n/delete_filial\n/add_filial\n/add_note\n/delete_note\n/filials')
 
 
-@bot.message_handler(commands=['laptops'])
-def get_laptop(message: Message):
-   response = requests.get(API_URL + 'laptop')
+@bot.message_handler(commands=['filials'])
+def get_filial(message: Message):
+   bot.clear_step_handler(message)
+   if message.chat.id in state:
+      del state[message.chat.id]
+   response = requests.get(API_URL + 'filials')
    if response.status_code == 200:
       lst = []
-      for lpt in response.json():
-         lst.append(f"{lpt['mark']['mark']}\t{lpt['model']}\t{lpt['filial']['filial']}")
+      for fil in response.json():
+         lst.append(f"{fil['filial']}\t")
       
       bot.send_message(chat_id=message.chat.id, text='\n'.join(lst))
    else:
       bot.send_message(chat_id=message.chat.id, text='Ошибка')
 
+@bot.message_handler(commands=['laptops'])
+def get_laptop(message: Message):
+   bot.clear_step_handler(message)
+   if message.chat.id in state:
+      del state[message.chat.id]
+   response = requests.get(API_URL + 'laptop')
+   if response.status_code == 200:
+      lst = '```\n'
+      for lpt in response.json():
+         lst += f"| {lpt['mark']['mark'].ljust(8)}| {lpt['model'][0:15].ljust(15)}| {lpt['filial']['filial'][0:9].ljust(9)}|\n"
+      lst += '```'
+      
+      bot.send_message(chat_id=message.chat.id, text= lst,parse_mode='Markdown')
+   else:
+      bot.send_message(chat_id=message.chat.id, text='Ошибка')
+
 @bot.message_handler(commands=['add_filial'])
 def add_filial(message: Message):
+   bot.clear_step_handler(message)
+   if message.chat.id in state:
+      del state[message.chat.id]
    bot.send_message(chat_id=message.chat.id, text="Напишите название")
 
    bot.register_next_step_handler(message, add_fil)
 
 @bot.message_handler(commands=['add_laptop'])
 def add_laptop(message: Message):
+   bot.clear_step_handler(message)
+   if message.chat.id in state:
+      del state[message.chat.id]
    state[message.chat.id] = {}
    print(message.chat.id)
    filials = get_filials()
@@ -51,12 +86,12 @@ def mark(message):
 
       markup.add(InlineKeyboardButton(mark['mark'],callback_data=f"mark-{mark['id']}"))
 
-   markup.add(InlineKeyboardButton('Добавить Марку'),callback_data = 'mark-0')
+   markup.add(InlineKeyboardButton('Добавить Марку',callback_data = 'mark-0'))
    
    bot.send_message(chat_id=message.chat.id, text="Выберите  марку",reply_markup=markup)
 
-def input_mark():
-   bot.send_message(chat_id=message.chat.id, text='напишите модель')
+# def input_mark():
+#    bot.send_message(chat_id=message.chat.id, text='напишите модель')
 
 
 def model(message):
@@ -124,27 +159,12 @@ def add_lpt(message):
    except:
        bot.send_message(chat_id=message.chat.id, text='error')
 
-   state.pop([message.chat.id])
+   state.pop(message.chat.id)
 
 
 
-@bot.message_handler(commands=['filials'])
-def get_filial(message: Message):
-   response = requests.get(API_URL + 'filials')
-   if response.status_code == 200:
-      lst = []
-      for fil in response.json():
-         lst.append(f"{fil['filial']}\t")
-      
-      bot.send_message(chat_id=message.chat.id, text='\n'.join(lst))
-   else:
-      bot.send_message(chat_id=message.chat.id, text='Ошибка')
 
 
-
-@bot.message_handler()
-def echo(message: Message):
-   bot.send_message(chat_id=message.chat.id, text=f'Привет, {message.from_user.username}')
 
 
 # @bot.callback_query_handler(func=lambda callback: True)
@@ -170,7 +190,11 @@ def get_filials():
 
 def add_mark(message):
    response = requests.post(API_URL + '/laptop/mark',json={'mark':message.text})
-   print(response.status_code)
+   if response.status_code == 200:
+      mark(message)
+   else:
+      bot.send_message(chat_id=message.chat.id, text='Ошибка')
+  
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('filial-'))
 def handler_fil(call: CallbackQuery):
@@ -195,11 +219,13 @@ def handler_fil(call: CallbackQuery):
    id = call.data.split('mark-')[1]
    if id == '0':
       bot.send_message(chat_id=call.message.chat.id, text='напишите марку')
-      bot.register_next_step_handler()
+      bot.register_next_step_handler(call.message,add_mark)
+   
+   else:
       
-   state[call.message.chat.id]['mark_id'] = int(id)
+      state[call.message.chat.id]['mark_id'] = int(id)
 
-   model(call.message)
+      model(call.message)
 
 
 
