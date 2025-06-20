@@ -5,8 +5,18 @@ from telebot import types
 import requests
 
 API_URL = 'http://127.0.0.1:8000/'
-bot = TeleBot('7937175776:AAHkh9r9ceDPlwCnMj7PpBFOT5V4Ku5S8KU')
+bot = TeleBot('7937175776:AAHTS2wBvYfzYY9yFRRUe5cBr8yRqh3_wF8')
 state = {}
+filials = {}
+marks = {}
+
+def cancel_step(func):
+    def wrapper(message):
+        if message.text and message.text.startswith('/'):
+            bot.clear_step_handler(message)
+            return bot.process_new_messages([message])
+        return func(message)
+    return wrapper
 
 @bot.message_handler(commands=['start'])
 def echo(message: Message):
@@ -77,7 +87,7 @@ def add_laptop(message: Message):
       markup.add(InlineKeyboardButton(filial['filial'],callback_data=f"filial-{filial['id']}"))
    
    bot.send_message(chat_id=message.chat.id, text="Выберите  филиал",reply_markup=markup)
-   
+
 
 def mark(message):
    marks = get_marks()
@@ -99,43 +109,44 @@ def model(message):
    bot.send_message(chat_id=message.chat.id, text='напишите модель')
    bot.register_next_step_handler(message, CPU)
 
-
+@cancel_step
 def CPU(message):
    print(message.text)
    bot.send_message(chat_id=message.chat.id, text='введите Какой процесор (Intel Core i5-1135G7)')
    state[message.chat.id]['model'] = message.text
    bot.register_next_step_handler(message, CPU_cores)
-
+@cancel_step
 def CPU_cores(message):
    print(message.text)
    bot.send_message(chat_id=message.chat.id, text=' Введите колличество ядер процессора')
    state[message.chat.id]['CPU'] = message.text
    bot.register_next_step_handler(message, CPU_frequency)
 
+@cancel_step
 def CPU_frequency(message):
    print(message.text)
    bot.send_message(chat_id=message.chat.id, text='введите частоту процессора')
    state[message.chat.id]['CPU_cores'] = int(message.text)
    bot.register_next_step_handler(message, RAM_amount)
-
+@cancel_step
 def RAM_amount(message):
    print(message.text)
    bot.send_message(chat_id=message.chat.id, text='введите колличество оперативной памяти')
    state[message.chat.id]['CPU_frequency'] = message.text
    bot.register_next_step_handler(message, video_card)
-
+@cancel_step
 def video_card(message):
    print(message.text)
    bot.send_message(chat_id=message.chat.id, text='введите видео карту')
    state[message.chat.id]['RAM_amount'] = message.text
    bot.register_next_step_handler(message, drive_type)
-
+@cancel_step
 def drive_type(message):
    print(message.text)
    bot.send_message(chat_id=message.chat.id, text='введите тип диска (ssd или hdd)')
    state[message.chat.id]['video_card'] = message.text
    bot.register_next_step_handler(message, drive_amount)
-
+@cancel_step
 def drive_amount(message):
    print(message.text)
    bot.send_message(chat_id=message.chat.id, text='введите размер диска')
@@ -143,7 +154,7 @@ def drive_amount(message):
    print(state[message.chat.id])
    bot.register_next_step_handler(message, add_lpt)
 
-
+@cancel_step
 def add_lpt(message):
    state[message.chat.id]['drive_amount'] = int(message.text)
    new_laptop = state[message.chat.id]
@@ -185,6 +196,10 @@ def get_filials():
    lst = []
    if response.status_code == 200:
       lst = response.json()
+      for filial  in lst:
+         filials[filial['id']] = filial['filial']
+
+   
       
    return lst
 
@@ -201,6 +216,8 @@ def handler_fil(call: CallbackQuery):
    id = call.data.split('filial-')[1]
    state[call.message.chat.id]['filial_id'] = int(id)
 
+   bot.edit_message_text(chat_id=call.message.chat.id,message_id=call.message.message_id,text=f'Выбрано: {filials[int(id)]}',reply_markup=None)
+
    # bot.register_next_step_handler(call.message, mark)
    mark(call.message)
 
@@ -210,6 +227,8 @@ def get_marks():
    lst = []
    if response.status_code == 200:
       lst = response.json()
+      for mark  in lst:
+         marks[mark['id']] = mark['mark']
       
    return lst
 
@@ -218,12 +237,16 @@ def get_marks():
 def handler_fil(call: CallbackQuery):
    id = call.data.split('mark-')[1]
    if id == '0':
-      bot.send_message(chat_id=call.message.chat.id, text='напишите марку')
+      bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=None,text='напишите марку')
       bot.register_next_step_handler(call.message,add_mark)
+
+
    
    else:
       
       state[call.message.chat.id]['mark_id'] = int(id)
+
+      bot.edit_message_text(chat_id=call.message.chat.id,message_id=call.message.message_id,text=f'Выбрано: {marks[int(id)]}',reply_markup=None)
 
       model(call.message)
 
