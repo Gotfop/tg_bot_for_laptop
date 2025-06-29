@@ -33,6 +33,22 @@ def echo(message: Message):
    bot.send_message(chat_id=message.chat.id, text='выберите команду\n /laptops\n/add_laptop \n/delete_laptop\n/delete_filial\n/add_filial\n/add_note\n/delete_note\n/filials')
 
 
+@bot.message_handler(commands=['delete_laptop'])
+def delete_laptops(message: Message):
+   bot.clear_step_handler(message)
+   if message.chat.id in state:
+      del state[message.chat.id]
+   response = requests.get(API_URL + 'laptop')
+   lst = '```\n'
+   for lpt in response.json():
+      lst += f"|{str(lpt['id']).ljust(3)} | {lpt['mark']['mark'].ljust(8)}| {lpt['model'][0:15].ljust(15)}| {lpt['filial']['filial'][0:9].ljust(9)}|\n"
+   lst += '```'
+   bot.send_message(chat_id=message.chat.id, text= lst,parse_mode='Markdown')
+   bot.send_message(chat_id=message.chat.id, text="Выберите номер")
+   bot.register_next_step_handler(message,delete_laptop)
+
+
+
 @bot.message_handler(commands=['filials'])
 def get_filial(message: Message):
    bot.clear_step_handler(message)
@@ -202,6 +218,21 @@ def get_filials():
    
       
    return lst
+
+def delete_laptop(message):
+   if message.text.isdigit():
+      url= f'{API_URL}/laptop/{message.text}'
+      print(url)
+
+      response = requests.delete(url)
+      if response.status_code == 204:
+         bot.send_message(chat_id=message.chat.id, text='Успешно')
+
+      else:
+         bot.send_message(chat_id=message.chat.id, text='Ошибка')
+
+   else:
+      bot.send_message(chat_id=message.chat.id, text='Ошибка,Введите цифру')
 
 def add_mark(message):
    response = requests.post(API_URL + '/laptop/mark',json={'mark':message.text})
